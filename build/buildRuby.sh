@@ -59,7 +59,9 @@ OMS_AGENTDIR=/opt/microsoft/omsagent
 PATCHES_SRCDIR=${BASE_DIR}/source/ext/patches
 RUBY_SRCDIR=${BASE_DIR}/source/ext/ruby
 FLUENTD_DIR=${BASE_DIR}/source/ext/fluentd
-
+JEMALLOC_SRCDIR=${BASE_DIR}/source/ext/jemalloc
+JEMALLOC_DSTDIR=/usr
+JEMALLOC_LIBPATH=${JEMALLOC_DSTDIR}/lib
 # Has configure script been run?
 
 if [ ! -f ${BASE_DIR}/build/config.mak ]; then
@@ -86,13 +88,13 @@ RUNNING_FOR_TEST=0
 
 case $RUBY_BUILD_TYPE in
     test)
-        RUBY_CONFIGURE_QUALS=( "${RUBY_CONFIGURE_QUALS[@]}" "${RUBY_CONFIGURE_QUALS_TESTINS}" )
+        RUBY_CONFIGURE_QUALS=( "${RUBY_CONFIGURE_QUALS[@]}" "${RUBY_CONFIGURE_QUALS_JEMALLOC}" "${RUBY_CONFIGURE_QUALS_TESTINS}" )
         RUNNING_FOR_TEST=1
 	;;
 
     100)
         INT_APPEND_DIR="/${RUBY_BUILD_TYPE}"
-        RUBY_CONFIGURE_QUALS=( "${RUBY_CONFIGURE_QUALS_100[@]}" "${RUBY_CONFIGURE_QUALS[@]}" "${RUBY_CONFIGURE_QUALS_SYSINS}" )
+        RUBY_CONFIGURE_QUALS=( "${RUBY_CONFIGURE_QUALS_100[@]}" "${RUBY_CONFIGURE_QUALS[@]}" "${RUBY_CONFIGURE_QUALS_JEMALLOC}" "${RUBY_CONFIGURE_QUALS_SYSINS}" )
 
         export LD_LIBRARY_PATH=$SSL_100_LIBPATH:$LD_LIBRARY_PATH
         export PKG_CONFIG_PATH=${SSL_100_LIBPATH}/pkgconfig:$PKG_CONFIG_PATH
@@ -100,7 +102,7 @@ case $RUBY_BUILD_TYPE in
 
     110)
         INT_APPEND_DIR="/${RUBY_BUILD_TYPE}"
-        RUBY_CONFIGURE_QUALS=( "${RUBY_CONFIGURE_QUALS_110[@]}" "${RUBY_CONFIGURE_QUALS[@]}" "${RUBY_CONFIGURE_QUALS_SYSINS}" )
+        RUBY_CONFIGURE_QUALS=( "${RUBY_CONFIGURE_QUALS_110[@]}" "${RUBY_CONFIGURE_QUALS[@]}" "${RUBY_CONFIGURE_QUALS_JEMALLOC}" "${RUBY_CONFIGURE_QUALS_SYSINS}" )
 
         export LD_LIBRARY_PATH=$SSL_110_LIBPATH:$LD_LIBRARY_PATH
         export PKG_CONFIG_PATH=${SSL_110_LIBPATH}/pkgconfig:$PKG_CONFIG_PATH
@@ -108,7 +110,7 @@ case $RUBY_BUILD_TYPE in
 
     *)
         INT_APPEND_DIR=""
-        RUBY_CONFIGURE_QUALS=( "${RUBY_CONFIGURE_QUALS[@]}" "${RUBY_CONFIGURE_QUALS_SYSINS}" )
+        RUBY_CONFIGURE_QUALS=( "${RUBY_CONFIGURE_QUALS[@]}" "${RUBY_CONFIGURE_QUALS_JEMALLOC}" "${RUBY_CONFIGURE_QUALS_SYSINS}" )
 
         if [ -n "$RUBY_BUILD_TYPE" ]; then
             echo "Invalid parameter passed (${RUBY_BUILD_TYPE}): Must be test, 100, 110 or blank" >& 2
@@ -116,14 +118,16 @@ case $RUBY_BUILD_TYPE in
         fi
 esac
 
+
 # There are multiple entires on the configure line; just get the one we need
 RUBY_DESTDIR=`echo "${RUBY_CONFIGURE_QUALS[@]}" | sed "s/ /\n/g" | grep -- "--prefix=" | cut -d= -f2`
 
 echo "Beginning Ruby build process ..."
-echo "  Build directory:   ${BASE_DIR}"
-echo "  Ruby sources:      ${RUBY_SRCDIR}"
-echo "  Ruby destination:  ${RUBY_DESTDIR}"
-echo "  Configuration:     ${RUBY_CONFIGURE_QUALS[@]}"
+echo "  Build directory:    ${BASE_DIR}"
+echo "  Ruby sources:       ${RUBY_SRCDIR}"
+echo "  Ruby destination:   ${RUBY_DESTDIR}"
+echo "  Ruby jemalloc:      ${RUBY_CONFIGURE_QUALS_JEMALLOC}"
+echo "  Configuration:      ${RUBY_CONFIGURE_QUALS[@]}"
 
 # Did we pick up Ruby destintion directory properly?
 
@@ -147,6 +151,19 @@ fi
 if [ -d ${OMS_AGENTDIR} -a ${RUNNING_FOR_TEST} -eq 0 ]; then
     echo "FATAL: OMS agent is already installed at '${OMS_AGENTDIR}'! Must remove agent to build agent ..." >& 2
     exit 1
+fi
+
+if [[ ! -z $RUBY_CONFIGURE_QUALS_JEMALLOC ]]; then
+    if [ ! -d ${JEMALLOC_SRCDIR} ]; then
+        echo "Fatal: Jemalloc source code not found at ${JEMALLOC_SRCDIR}" >& 2
+        exit 1
+    fi
+    echo "========================= Performing Building Jemalloc"
+    cd ${JEMALLOC_SRCDIR}
+    ./autogen.sh --prefix=${JEMALLOC_DSTDIR} --libdir=${JEMALLOC_LIBPATH}
+    make
+    make install_bin install_include install_lib
+    ldconfig
 fi
 
 # Clean the version of Ruby from any existing files that aren't part of source
@@ -199,6 +216,11 @@ elevate make install
 
 export PATH=${RUBY_DESTDIR}/bin:$PATH
 
+if [[ ! -z $RUBY_CONFIGURE_QUALS_JEMALLOC ]]; then
+    echo "=========================== Copy JEMALLOC to ruby lib directory"
+    sudo cp $JEMALLOC_LIBPATH/libjemalloc.so* ${RUBY_DESTDIR}/lib/
+fi
+
 echo "Installing Bundler into Ruby ..."
 elevate ${RUBY_DESTDIR}/bin/gem install ${BASE_DIR}/source/ext/gems/bundler-1.10.6.gem
 
@@ -226,26 +248,6 @@ bundle exec rake build
 elevate ${RUBY_DESTDIR}/bin/gem install pkg/fluentd-0.12.40.gem
 
 echo "========================= Performing Stripping Binaries"
-
-RUBY_WITH_JEMALLOC_CONF=`echo "${RUBY_CONFIGURE_QUALS[@]}" | sed "s/ /\n/g" | grep -- "jemalloc"`
-if [[ $RUBY_WITH_JEMALLOC_CONF == *"jemalloc"* ]]; then
-    echo "=========================== Copying JEMALLOC to ruby lib directory"
-    DISTRO=`lsb_release -i | cut -d : -f 2 | sed 's/\t//g'`
-    RPM_CMD="rpm -ql jemalloc"
-    case $DISTRO in
-        Ubuntu | Debian)
-          RPM_CMD="dpkg -L libjemalloc-dev"
-          ;;
-        CentOS | Redhat)
-          RPM_CMD="rpm -ql jemalloc"
-          ;;
-      esac
-
-    echo "RPM_CMD=$RPM_CMD"
-    LIB_JEMALLOC_FILES=`$RPM_CMD | grep 'so' | grep '64'`
-    echo "LIB_JEMALLOC_FILES=$LIB_JEMALLOC_FILES"
-    sudo cp $LIB_JEMALLOC_FILES  ${RUBY_DESTDIR}/lib/libjemalloc.so.1
-fi
 
 sudo find ${RUBY_DESTDIR} -name \*.so -print -exec strip {} \;
 sudo strip ${RUBY_DESTDIR}/bin/ruby

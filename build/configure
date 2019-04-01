@@ -420,10 +420,10 @@ ruby_configure_quals=(
     --disable-install-doc
     --disable-install-rdoc
     --without-gmp
-    --with-jemalloc
     --with-out-ext=${RUBY_EXTENSIONS}
   )
 
+ruby_config_quals_jemalloc="--with-jemalloc"
 ruby_config_quals_sysins="--prefix=/opt/microsoft/omsagent/ruby"
 
 ruby_test_directory="${home_dir}/bin/omsagent_test_ruby"
@@ -486,8 +486,8 @@ PACKAGE_SUFFIX=$PKG_SUFFIX
 RUBY_CONFIGURE_QUALS=( ${ruby_configure_quals[@]} )
 RUBY_CONFIGURE_QUALS_SYSINS="$ruby_config_quals_sysins"
 RUBY_CONFIGURE_QUALS_TESTINS="$ruby_config_quals_testins"
+RUBY_CONFIGURE_QUALS_JEMALLOC="${ruby_config_quals_jemalloc}"
 RUBY_TEST_DIRECTORY="$ruby_test_directory"
-
 EOF
 
 if [ "$ULINUX" = "1" ]; then

@@ -29,6 +29,7 @@ RUBY_DIR := $(BASE_DIR)/source/ext/ruby
 #      of the Ruby installed with the OMSAgent
 RUBY_VER := 2.4.0
 FLUENTD_DIR := $(BASE_DIR)/source/ext/fluentd
+JEMALLOC_DIR := $(BASE_DIR)/source/ext/jemalloc
 PLUGINS_DIR := $(BASE_DIR)/source/code/plugins
 
 INTERMEDIATE_DIR=$(BASE_DIR)/intermediate/$(BUILD_CONFIGURATION)
@@ -153,6 +154,8 @@ clean-ruby : clean
 	#
 	@echo "Cleaning fluentd source directory ..."
 	cd $(FLUENTD_DIR); git clean -dfx
+	@echo "Cleaning jemalloc source directory ..."
+	cd $(JEMALLOC_DIR); git clean -dfx
 
 clean-dsc : clean
 	-make -C $(DSC_DIR) clean
