@@ -15,6 +15,9 @@ module OMS
     TEST_ODS_ENDPOINT = 'https://www.fakeods.com/OperationalData.svc/PostJsonDataItems'
     TEST_GET_BLOB_ODS_ENDPOINT = 'https://www.fakeods.com/ContainerService.svc/GetBlobUploadUri'
     TEST_NOTIFY_BLOB_ODS_ENDPOINT = 'https://www.fakeods.com/ContainerService.svc/PostBlobUploadNotification'
+    TEST_UUID = '2cb5b6af-422c-0e4f-b43b-c388b2a55d48'
+    TEST_UUID_INVALID = '2cb5b6af-422c-0e4f-b43b-c388b2a55d482cb5b6af-422c-0e4f-b43b-c388b2a55d48'
+    TEST_UUID_ZERO = '00000000-0000-0000-0000-000000000000'
 
     # Extend class to reset class variables
     class OMS::Configuration
@@ -30,12 +33,13 @@ module OMS
       Configuration.configurationLoaded = false
       Common.OSFullName = nil
       @tmp_conf_file = Tempfile.new('oms_conf_file')
+      @tmp_invalid_conf_file = Tempfile.new('oms_invalid_conf_file')
       @tmp_cert_file = Tempfile.new('temp_cert_file')
       @tmp_key_file = Tempfile.new('temp_key_file')
     end
 
     def teardown
-      [@tmp_conf_file, @tmp_cert_file, @tmp_key_file].each { |tmpfile|
+      [@tmp_conf_file, @tmp_cert_file, @tmp_key_file, @tmp_invalid_conf_file].each { |tmpfile|
         tmpfile.unlink
       }
     end
@@ -46,9 +50,21 @@ module OMS
       "LOG_FACILITY=local0\n" \
       "CERTIFICATE_UPDATE_ENDPOINT=#{TEST_CERT_UPDATE_ENDPOINT}\n" \
       "DSC_ENDPOINT=#{TEST_DSC_ENDPOINT}\n" \
-      "OMS_ENDPOINT=#{TEST_ODS_ENDPOINT}\n"
+      "OMS_ENDPOINT=#{TEST_ODS_ENDPOINT}\n" \
+      "UUID=#{TEST_UUID}\n"
 
       File.write(@tmp_conf_file.path, conf)
+
+      #conf file with an invalid UUID
+      invalid_conf = "WORKSPACE_ID=#{TEST_WORKSPACE_ID}\n" \
+      "AGENT_GUID=#{TEST_AGENT_GUID}\n" \
+      "LOG_FACILITY=local0\n" \
+      "CERTIFICATE_UPDATE_ENDPOINT=#{TEST_CERT_UPDATE_ENDPOINT}\n" \
+      "DSC_ENDPOINT=#{TEST_DSC_ENDPOINT}\n" \
+      "OMS_ENDPOINT=#{TEST_ODS_ENDPOINT}\n" \
+      "UUID=#{TEST_UUID_INVALID}\n"
+
+      File.write(@tmp_invalid_conf_file.path, invalid_conf)
 
       # this is a fake certificate
       cert = "-----BEGIN CERTIFICATE-----\n" \
@@ -121,9 +137,19 @@ module OMS
       assert_equal(TEST_ODS_ENDPOINT, Configuration.ods_endpoint.to_s, "ODS Endpoint should be loaded")
       assert_equal(TEST_GET_BLOB_ODS_ENDPOINT, Configuration.get_blob_ods_endpoint.to_s, "GetBlob ODS Endpoint should be loaded")
       assert_equal(TEST_NOTIFY_BLOB_ODS_ENDPOINT, Configuration.notify_blob_ods_endpoint.to_s, "NotifyBlobUpload ODS Endpoint should be loaded")
+      assert_equal(TEST_UUID, Configuration.uuid, "VM UUID should be loaded")
       assert_not_equal(nil, Configuration.cert, "Certificate should be loaded")
       assert_not_equal(nil, Configuration.key, "Key should be loaded")
       assert_equal(["Azure region value is not set. This must be onpremise machine"], $log.logs, "There was an error loading the configuration")
+    end
+
+    def test_invalid_uuid()
+      prepare_files
+      $log = MockLog.new
+      success = Configuration.load_configuration(@tmp_invalid_conf_file.path, @tmp_cert_file.path, @tmp_key_file.path)
+      puts $log.logs
+      assert_equal(true, success, 'Configuration should be loaded')
+      assert_equal(TEST_UUID_ZERO, Configuration.uuid, "Default VM UUID should be loaded instead of invalid one")
     end
 
     def test_load_configuration_wrong_path()
