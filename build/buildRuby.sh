@@ -118,6 +118,10 @@ case $RUBY_BUILD_TYPE in
         fi
 esac
 
+# Enabling GCC 4.8 required for ruby
+#if [[ -e /opt/rh/devtoolset-2/root/usr/bin/gcc  ]]; then
+#    export PATH=/opt/rh/devtoolset-2/root/usr/bin:$PATH
+#fi
 
 # There are multiple entires on the configure line; just get the one we need
 RUBY_DESTDIR=`echo "${RUBY_CONFIGURE_QUALS[@]}" | sed "s/ /\n/g" | grep -- "--prefix=" | cut -d= -f2`
@@ -153,18 +157,17 @@ if [ -d ${OMS_AGENTDIR} -a ${RUNNING_FOR_TEST} -eq 0 ]; then
     exit 1
 fi
 
-if [[ ! -z $RUBY_CONFIGURE_QUALS_JEMALLOC ]]; then
-    if [ ! -d ${JEMALLOC_SRCDIR} ]; then
-        echo "Fatal: Jemalloc source code not found at ${JEMALLOC_SRCDIR}" >& 2
-        exit 1
-    fi
-    echo "========================= Performing Building Jemalloc"
-    cd ${JEMALLOC_SRCDIR}
-    ./autogen.sh --prefix=${JEMALLOC_DSTDIR} --libdir=${JEMALLOC_LIBPATH}
-    make
-    make install_bin install_include install_lib
-    ldconfig
+if [ ! -d ${JEMALLOC_SRCDIR} ]; then
+    echo "Fatal: Jemalloc source code not found at ${JEMALLOC_SRCDIR}" >& 2
+    exit 1
 fi
+
+echo "========================= Performing Building Jemalloc"
+cd ${JEMALLOC_SRCDIR}
+./autogen.sh --prefix=${JEMALLOC_DSTDIR} --libdir=${JEMALLOC_LIBPATH}
+make && make install_bin install_include install_lib
+ldconfig
+
 
 # Clean the version of Ruby from any existing files that aren't part of source
 # control
@@ -216,7 +219,7 @@ elevate make install
 
 export PATH=${RUBY_DESTDIR}/bin:$PATH
 
-if [[ ! -z $RUBY_CONFIGURE_QUALS_JEMALLOC ]]; then
+if [[ -e $JEMALLOC_LIBPATH/libjemalloc.so ]]; then
     echo "=========================== Copy JEMALLOC to ruby lib directory"
     sudo cp $JEMALLOC_LIBPATH/libjemalloc.so* ${RUBY_DESTDIR}/lib/
 fi
