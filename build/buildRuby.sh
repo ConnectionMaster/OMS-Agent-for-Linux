@@ -221,6 +221,12 @@ if [[ ! -z $RUBY_CONFIGURE_QUALS_JEMALLOC ]]; then
     sudo cp $JEMALLOC_LIBPATH/libjemalloc.so* ${RUBY_DESTDIR}/lib/
 fi
 
+if [ $RUNNING_FOR_TEST -eq 1 ]; then
+    echo "Installing Metaclass and Mocha (for UnitTest) into Ruby ..."
+    elevate ${RUBY_DESTDIR}/bin/gem install ${BASE_DIR}/source/ext/gems/metaclass-0.0.4.gem
+    elevate ${RUBY_DESTDIR}/bin/gem install ${BASE_DIR}/source/ext/gems/mocha-1.8.0.gem
+fi
+
 echo "Installing Bundler into Ruby ..."
 elevate ${RUBY_DESTDIR}/bin/gem install ${BASE_DIR}/source/ext/gems/bundler-1.10.6.gem
 
@@ -229,6 +235,9 @@ elevate ${RUBY_DESTDIR}/bin/gem install ${BASE_DIR}/source/ext/gems/builder-3.2.
 
 echo "Installing Gyoku into Ruby ..."
 elevate ${RUBY_DESTDIR}/bin/gem install ${BASE_DIR}/source/ext/gems/gyoku-1.3.1.gem
+
+echo "Installing ISO8601 into Ruby ..."
+elevate ${RUBY_DESTDIR}/bin/gem install ${BASE_DIR}/source/ext/gems/iso8601-0.12.1.gem
 
 # Now do what we need for FluentD
 
