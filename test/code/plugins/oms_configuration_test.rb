@@ -18,7 +18,16 @@ module OMS
     TEST_UUID = '2cb5b6af-422c-0e4f-b43b-c388b2a55d48'
     TEST_UUID_INVALID = '2cb5b6af-422c-0e4f-b43b-c388b2a55d482cb5b6af-422c-0e4f-b43b-c388b2a55d48'
     TEST_UUID_ZERO = '00000000-0000-0000-0000-000000000000'
-
+    TEST_TOPOLOGY_INTERVAL = 7200.0
+    TEST_TELEMETRY_INTERVAL = 600.0
+    TEST_TOPOLOGY_RESPONSE = '<?xml version="1.0" encoding="utf-8"?>' \
+                             '<LinuxAgentTopologyResponse queryInterval="PT2H" telemetryReportInterval="PT10M" ' \
+                             'id="ccb89298-086e-4a77-ba5e-5b525156d692" ' \
+                             'xmlns="http://schemas.microsoft.com/WorkloadMonitoring/HealthServiceProtocol/2014/09/" ' \
+                             'xmlns:xsd="http://www.w3.org/2001/XMLSchema" ' \
+                             'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">' \
+                             '</LinuxAgentTopologyResponse>'
+                             # truncated to relevant portion, e.g. containing queryInterval, telemetryReportInterval
     # Extend class to reset class variables
     class OMS::Configuration
       class << self
@@ -132,7 +141,8 @@ module OMS
       $log = MockLog.new
       success = Configuration.load_configuration(@tmp_conf_file.path, @tmp_cert_file.path, @tmp_key_file.path)
       puts $log.logs
-      assert_equal(true, success, 'Configuration should be loaded')
+      assert_equal(true, success, "Configuration should be loaded")
+      assert_equal(TEST_WORKSPACE_ID, Configuration.workspace_id, "Workspace ID should be loaded")
       assert_equal(TEST_AGENT_GUID, Configuration.agent_id, "Agent ID should be loaded")
       assert_equal(TEST_ODS_ENDPOINT, Configuration.ods_endpoint.to_s, "ODS Endpoint should be loaded")
       assert_equal(TEST_GET_BLOB_ODS_ENDPOINT, Configuration.get_blob_ods_endpoint.to_s, "GetBlob ODS Endpoint should be loaded")
@@ -141,6 +151,9 @@ module OMS
       assert_not_equal(nil, Configuration.cert, "Certificate should be loaded")
       assert_not_equal(nil, Configuration.key, "Key should be loaded")
       assert_equal(["Azure region value is not set. This must be onpremise machine"], $log.logs, "There was an error loading the configuration")
+      Configuration.set_request_intervals(TEST_TOPOLOGY_INTERVAL, TEST_TELEMETRY_INTERVAL)
+      assert_equal(TEST_TOPOLOGY_INTERVAL, Configuration.topology_interval, "Incorrect topology interval parsed")
+      assert_equal(TEST_TELEMETRY_INTERVAL, Configuration.telemetry_interval, "Incorrect telemetry interval parsed")
     end
 
     def test_invalid_uuid()
